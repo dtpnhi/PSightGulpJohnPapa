@@ -3,8 +3,10 @@ var gulpPlugins = require('gulp-load-plugins')();
 
 var argvs = require('yargs').argv;
 var del = require('del');
+var browserSync = require('browser-sync');
 
 var config = require('./gulp.config')();
+var port = process.env.PORT || config.defaultPort;
 
 ////// -------- style -------- //////
 gulp.task('less-to-css', ['clean-styles'], function () {
@@ -62,6 +64,81 @@ gulp.task('inject', ['less-to-css', 'wiredep'], function () {
         .pipe(gulpPlugins.inject(gulp.src(config.css_files)))
         .pipe(gulp.dest(config.client));
 });
+
+gulp.task('serve-dev', ['inject'], function () {
+
+    var isDev = true;
+    var nodeOptions = {
+        script: config.nodeServer,
+        delayTime: 1,
+        env: {
+            "PORT": port,
+            "NODE_ENV": isDev ? 'dev' : 'build'
+        },
+        watch: [config.server]
+    };
+    return gulpPlugins.nodemon(nodeOptions)
+        .on('restart', function (ev) {
+            log('*** nodemon restarted');
+            log('files changed on restart:\n', ev);
+
+            setTimeout(function () {
+
+                browserSync.notify('Reloading browser...');
+                browserSync.reload({stream: false});
+
+            }, config.browserReloadDelay);
+
+        })
+        .on('start', function () {
+            log('*** nodemon started');
+            startBrowserSync();
+        });
+});
+
+function changeEvent(event) {
+    var srcPattern = new RegExp('/.*(?=/' + config.source + ')/');
+    log('File ' + event.path.replace(srcPattern, '') + ' ' + event.type);
+}
+
+function startBrowserSync() {
+    
+    if (argvs.nosync || browserSync.active) {
+        return;
+    }
+    
+    log('Starting browser-sync on port ' + port);
+
+    gulp.watch([config.less], ['less-to-css'])
+        .on('change', function (event) {
+            changeEvent(event);
+        })
+    ;
+
+    var options = {
+        proxy: 'localhost:' + port,
+        port: 3000,
+        files: [
+            config.client + '**!/!*.*',
+            '!' + config.css_path + '*.less',
+            config.css_files
+        ],
+        ghostMode: {
+            clicks: true,
+            location: false,
+            forms: true,
+            scroll: true
+        },
+        injectChanges: true,
+        logFileChanges: true,
+        logLevel: 'debug',
+        logPrefix: 'gulp-patterns',
+        notify: true,
+        reloadDelay: 1000
+    };
+
+    browserSync(options);
+}
 
 function clean(path, afterCleanCB) {
     return del(path, afterCleanCB);

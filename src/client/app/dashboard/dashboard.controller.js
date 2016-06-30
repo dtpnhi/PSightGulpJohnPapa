@@ -10,7 +10,7 @@
         var vm = this;
         vm.customers = [];
         vm.gotoCustomer = gotoCustomer;
-        vm.title = 'Dashboard';
+        vm.title = 'Dashboard News PN';
 
         activate();
 
