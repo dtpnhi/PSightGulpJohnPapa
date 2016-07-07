@@ -1,3 +1,4 @@
+
 var gulp = require('gulp');
 var gulpPlugins = require('gulp-load-plugins')();
 
@@ -9,7 +10,7 @@ var config = require('./gulp.config')();
 var port = process.env.PORT || config.defaultPort;
 
 ////// -------- style -------- //////
-gulp.task('less-to-css', ['clean-styles'], function () {
+gulp.task('styles', ['clean-styles'], function () {
 
     return gulp
         .src(config.less)
@@ -24,7 +25,7 @@ gulp.task('clean-styles', function (afterCleanStylesDone) {
 });
 
 gulp.task('watch-less', function () {
-    gulp.watch([config.less], ['less-to-css'])
+    gulp.watch([config.less], ['styles'])
 })
 ////// -------- style end -------- //////
 
@@ -55,7 +56,7 @@ gulp.task('wiredep', function () {
 
 });
 
-gulp.task('inject', ['less-to-css', 'wiredep'], function () {
+gulp.task('inject', ['styles', 'wiredep', 'templatecache'], function () {
 
     log('Wire up the app css into the html and call wiredep');
 
@@ -65,9 +66,51 @@ gulp.task('inject', ['less-to-css', 'wiredep'], function () {
         .pipe(gulp.dest(config.client));
 });
 
-gulp.task('serve-dev', ['inject'], function () {
+gulp.task('serve-build', ['optimize'], function () {
+    serve(false);
+});
 
-    var isDev = true;
+gulp.task('serve-dev', ['inject'], function () {
+   //serve(true);
+
+
+    if (argvs.nosync || browserSync.active) {
+        return;
+    }
+
+    log('Starting browser-sync on port ' + port);
+
+    gulp.watch([config.less], ['styles'])
+        .on('change', function (event) {changeEvent(event);});
+
+    var options = {
+        proxy: 'localhost:' + port,
+        port: 3000,
+        files: [
+            config.client + '**!/!*.*',
+            '!' + config.css_path + '*.less',
+            config.css_files
+        ],
+        ghostMode: {
+            clicks: true,
+            location: false,
+            forms: true,
+            scroll: true
+        },
+        injectChanges: true,
+        logFileChanges: true,
+        logLevel: 'debug',
+        logPrefix: 'gulp-patterns',
+        notify: true,
+        reloadDelay: 1000
+    };
+
+    browserSync(options);
+    
+});
+
+function serve(isDev) {
+
     var nodeOptions = {
         script: config.nodeServer,
         delayTime: 1,
@@ -83,17 +126,96 @@ gulp.task('serve-dev', ['inject'], function () {
             log('files changed on restart:\n', ev);
 
             setTimeout(function () {
-
                 browserSync.notify('Reloading browser...');
                 browserSync.reload({stream: false});
-
             }, config.browserReloadDelay);
-
         })
         .on('start', function () {
             log('*** nodemon started');
-            startBrowserSync();
+            startBrowserSync(isDev);
+        })
+        .on('crash', function () {
+            log('*** nodemon crashed: script crashed for some reason');
+        })
+        .on('exit', function () {
+            log('*** nodemon exited cleanly');
         });
+}
+
+gulp.task('help', function () {
+    return gulpPlugins.taskListing();
+});
+
+gulp.task('default', ['help']);
+
+gulp.task('fonts', ['clean-fonts'], function () {
+    log('Copying fonts');
+
+    return gulp
+        .src(config.fonts)
+        .pipe(gulp.dest(config.build + 'fonts'));
+});
+
+gulp.task('images', ['clean-images'], function () {
+    log('Copying and compressing the images');
+
+    return gulp
+        .src(config.images)
+        .pipe(gulpPlugins.imagemin({optimizationLevel:4}))
+        .pipe(gulp.dest(config.build + 'images'));
+});
+
+gulp.task('clean-fonts', function (done) {
+    return clean(config.build + 'fonts', done);
+});
+
+gulp.task('clean-images', function (done) {
+    return clean(config.build + 'images', done);
+});
+
+gulp.task('clean', function (done) {
+
+    var files = [].concat(
+        config.temp + '**!/!*.*',
+        config.build + '**!/!*.*'
+    );
+
+    log('Cleaning ', files);
+    
+    return clean(files, done);
+});
+
+gulp.task('templatecache', ['clean'], function () {
+    log('Creating AngularJS $templateCache');
+    
+    return gulp
+        .src(config.htmltemplates)
+        .pipe(gulpPlugins.minifyHtml({empty: true}))
+        .pipe(gulpPlugins.angularTemplatecache(
+            config.templateCache.file,
+            config.templateCache.options
+        ))
+        .pipe(gulp.dest(config.temp));
+});
+
+
+
+gulp.task('optimize',  ['images', 'fonts', 'inject'], function() {
+    log('Optimizing the javascript, css, html');
+
+    var templateCache = config.temp + config.templateCache.file;
+
+    return gulp
+        .src(config.index)
+        .pipe(gulpPlugins.if(argvs.verbose, gulpPlugins.print()))
+        .pipe(gulpPlugins.plumber())
+        .pipe(gulpPlugins.inject(gulp.src(templateCache, {read: false}), {
+            starttag: '<!-- inject:templates:js -->'
+        }))
+        .pipe(gulpPlugins.useref({searchPath:'./'}))
+        .pipe(gulpPlugins.if('*.css', gulpPlugins.csso()))
+        .pipe(gulpPlugins.if('*.js', gulpPlugins.uglify()))
+        .pipe(gulp.dest(config.build));
 });
 
 function changeEvent(event) {
@@ -101,7 +223,7 @@ function changeEvent(event) {
     log('File ' + event.path.replace(srcPattern, '') + ' ' + event.type);
 }
 
-function startBrowserSync() {
+function startBrowserSync(isDev) {
     
     if (argvs.nosync || browserSync.active) {
         return;
@@ -109,20 +231,25 @@ function startBrowserSync() {
     
     log('Starting browser-sync on port ' + port);
 
-    gulp.watch([config.less], ['less-to-css'])
-        .on('change', function (event) {
-            changeEvent(event);
-        })
-    ;
-
+    if (isDev) {
+        
+        gulp.watch([config.less], ['styles'])
+            .on('change', function (event) {changeEvent(event);});
+        
+    } else {
+        
+        gulp.watch([config.less, config.js, config.html], ['optimize', browserSync.reload])
+            .on('change', function (event) {changeEvent(event);});
+    }
+    
     var options = {
         proxy: 'localhost:' + port,
         port: 3000,
-        files: [
+        files: isDev ? [
             config.client + '**!/!*.*',
             '!' + config.css_path + '*.less',
             config.css_files
-        ],
+        ] : [],
         ghostMode: {
             clicks: true,
             location: false,

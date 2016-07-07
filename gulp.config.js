@@ -3,8 +3,10 @@ module.exports = function () {
     var client = './src/client/';
     var server = './src/server/'
     var client_app = client + 'app/';
+    var temp = './.tmp/';
 
     var config = {
+        temp: temp,
         
         index: client + 'index.html',
         
@@ -31,13 +33,22 @@ module.exports = function () {
             directory: './bower_components',
             ignorePath: '../..'
         },
-
-        /**
-         * Node settings
-         */
         defaultPort: 7203,
         nodeServer: server + 'app.js',
-        browserReloadDelay: 1000
+        browserReloadDelay: 1000,
+        html: client_app + '**/*.html',
+        htmltemplates: client_app + '**/*.html',
+        templateCache: {
+            file: 'templates.js',
+            options: {
+                module: 'app.core',
+                standAlone: false,
+                root: 'app/'
+            }
+        },
+        fonts: './bower_components/font-awesome/fonts/**/*.*',
+        images: client + 'images/**/*.*',
+        build: './build/'
     };
 
     config.getWiredepDefaultOptions = function () {
