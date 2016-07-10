@@ -4,6 +4,7 @@ module.exports = function () {
     var server = './src/server/'
     var client_app = client + 'app/';
     var temp = './.tmp/';
+    var root = './';
 
     var config = {
         temp: temp,
@@ -16,6 +17,14 @@ module.exports = function () {
         
         client: client,
         server: server,
+        root: root,
+        
+        packages: [
+            root + 'package.json',
+            root + 'bower.json'
+        ],
+        
+        app: 'app.js',
         
         js: [
             client_app + '**/*.module.js',

@@ -176,8 +176,8 @@ gulp.task('clean-images', function (done) {
 gulp.task('clean', function (done) {
 
     var files = [].concat(
-        config.temp + '**!/!*.*',
-        config.build + '**!/!*.*'
+        config.temp + '**/*.*',
+        config.build + '**/*.*'
     );
 
     log('Cleaning ', files);
@@ -198,8 +198,6 @@ gulp.task('templatecache', ['clean'], function () {
         .pipe(gulp.dest(config.temp));
 });
 
-
-
 gulp.task('optimize',  ['images', 'fonts', 'inject'], function() {
     log('Optimizing the javascript, css, html');
 
@@ -214,8 +212,38 @@ gulp.task('optimize',  ['images', 'fonts', 'inject'], function() {
         }))
         .pipe(gulpPlugins.useref({searchPath:'./'}))
         .pipe(gulpPlugins.if('*.css', gulpPlugins.csso()))
+        .pipe(gulpPlugins.if('**/' + config.app, gulpPlugins.ngAnnotate({remove:true, add:true, single_quotes:true})))
         .pipe(gulpPlugins.if('*.js', gulpPlugins.uglify()))
+        .pipe(gulpPlugins.if('!*.html', gulpPlugins.rev()))
+        .pipe(gulpPlugins.revReplace())
+        .pipe(gulp.dest(config.build))
+        .pipe(gulpPlugins.rev.manifest())
         .pipe(gulp.dest(config.build));
+});
+
+gulp.task('bump', function () {
+    
+    var version = argvs.version;
+    var type = argvs.type || 'patch';
+    var msg = 'Bumping versions ';
+    
+    var options = {};
+    
+    if (version) {
+        options.version = version;
+        msg += 'to ' + version;
+    } else {
+        options.type = type;
+        msg += 'for a ' + type;
+    }
+    
+    log(msg);
+    
+    return gulp
+        .src(config.packages)
+        .pipe(gulpPlugins.if(argvs.verbose, gulpPlugins.print()))
+        .pipe(gulpPlugins.bump(options))
+        .pipe(gulp.dest(config.root));
 });
 
 function changeEvent(event) {
@@ -246,7 +274,7 @@ function startBrowserSync(isDev) {
         proxy: 'localhost:' + port,
         port: 3000,
         files: isDev ? [
-            config.client + '**!/!*.*',
+            config.client + '**/*.*',
             '!' + config.css_path + '*.less',
             config.css_files
         ] : [],
