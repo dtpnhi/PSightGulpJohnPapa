@@ -5,6 +5,8 @@ module.exports = function () {
     var client_app = client + 'app/';
     var temp = './.tmp/';
     var root = './';
+    var wiredep = require('wiredep');
+    var bowerFiles = wiredep({devDependencies: true})['js'];
 
     var config = {
         temp: temp,
@@ -55,6 +57,12 @@ module.exports = function () {
                 root: 'app/'
             }
         },
+
+        /**
+         * Karma and testing settings
+         */
+        serverIntegrationSpecs: [client + 'tests/server-integration/**/*.spec.js'],
+
         fonts: './bower_components/font-awesome/fonts/**/*.*',
         images: client + 'images/**/*.*',
         build: './build/'
@@ -68,5 +76,58 @@ module.exports = function () {
         }
     };
 
+    config.karma = function() {
+
+        var options = {
+            files: [].concat(
+                bowerFiles,
+                config.specHelpers, // TODO
+                client + '**/*.module.js',
+                client + '**/*.js',
+                temp + config.templateCache.file,
+                config.serverIntegrationSpecs
+            ),
+            exclude: [],
+            coverage: {
+                dir: report + 'coverage', // TODO
+                reporters: [
+                    {type: 'html', subdir: 'report-html'},
+                    {type: 'lcov', subdir: 'report-lcov'},
+                    {type: 'text-summary'}
+                ]
+            },
+            preprocesors: {}
+        };
+        options.preprocesors[client_app + '**/!(*.spec)+(.js)'] = ['coverage'];
+        return options;
+    };
+
     return config;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

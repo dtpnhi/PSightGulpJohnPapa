@@ -246,6 +246,30 @@ gulp.task('bump', function () {
         .pipe(gulp.dest(config.root));
 });
 
+function startTests(singleRun, done) {
+
+    var karma = require('karma').server;
+    var excludeFiles = [];
+    var serverFiles = config.serverIntegrationSpecs;
+
+    excludeFiles = serverFiles;
+
+    karma.start({
+        config: __dirname + 'karma.conf.js',
+        exclude: excludeFiles,
+        single: !!singleRun
+    }, karmaCompleted);
+
+    function karmaCompleted(karmaResult) {
+
+        if (karmaResult === 1) {
+            done('karma: tests failed with code');
+        } else {
+            done();
+        }
+    }
+}
+
 function changeEvent(event) {
     var srcPattern = new RegExp('/.*(?=/' + config.source + ')/');
     log('File ' + event.path.replace(srcPattern, '') + ' ' + event.type);
